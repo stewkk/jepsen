@@ -68,8 +68,7 @@
         :--initial-cluster-state        :new
         :--initial-advertise-peer-urls  (peer-url node)
         :--initial-cluster              (initial-cluster test))
-       ;; FIXME: wait for healthcheck
-       (Thread/sleep 10000)))
+       (Thread/sleep 1000)))
 
     (teardown! [_ _ node]
       (info node "tearing down etcd")
@@ -99,20 +98,27 @@
   (setup! [_ _])
 
   (invoke! [_ _ op]
-    (case (:f op)
-      :read (assoc op :type :ok , :value (-> conn
-                                             (v/get "foo" {:quorum? true})
-                                             parse-long-nil))
-      :write (do (v/reset! conn "foo" (:value op))
-                 (assoc op :type :ok))
-      :cas (try+
-            (let [[old new] (:value op)]
+    (try+
+     (case (:f op)
+       :read (assoc op :type :ok , :value (-> conn
+                                              (v/get "foo" {:quorum? true})
+                                              parse-long-nil))
+       :write (do (v/reset! conn "foo" (:value op))
+                  (assoc op :type :ok))
+       :cas (let [[old new] (:value op)]
               (assoc op :type (if (v/cas! conn "foo" old new)
                                 :ok
-                                :fail)))
-            #_{:clj-kondo/ignore [:unresolved-symbol]} ;; NOTE: bug in language server
-            (catch [:errorCode 100] ex
-              (assoc op :type :fail, :error :not-found)))))
+                                :fail))))
+     #_{:clj-kondo/ignore [:unresolved-symbol]} ;; NOTE: lsp bug
+     (catch [:errorCode 100] ex
+       (assoc op :type :fail, :error :not-found))
+     #_{:clj-kondo/ignore [:unresolved-symbol]} ;; NOTE: lsp bug
+     (catch java.net.SocketTimeoutException e
+       (assoc op
+              :type  (if (= :read (:f op))
+                       :fail
+                       :info)
+              :error :timeout))))
 
   (teardown! [_ _])
 
@@ -135,7 +141,7 @@
                      :timeline (timeline/html)})
           :nemesis (nemesis/partition-random-halves)
           :generator (->> (gen/mix [r w cas])
-                          (gen/stagger 1/50)
+                          (gen/stagger 1/10)
                           (gen/nemesis
                            (cycle [(gen/sleep 5)
                                    {:type :info, :f :start}
