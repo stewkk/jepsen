@@ -8,13 +8,16 @@
              [generator :as gen]
              [client :as client]
              [checker :as checker]
-             [nemesis :as nemesis]]
+             [nemesis :as nemesis]
+             [independent :as independent]]
             [jepsen.checker.timeline :as timeline]
             [jepsen.control.util :as cu]
             [jepsen.os.debian :as debian]
             [verschlimmbesserung.core :as v]
             [slingshot.slingshot :refer [try+]]
-            [knossos.model :as model]))
+            [knossos.model :as model]
+            [jepsen.independent :as independent]
+            [jepsen.checker :as checker]))
 
 (def dir     "/opt/etcd")
 (def binary "etcd")
@@ -97,28 +100,30 @@
 
   (setup! [_ _])
 
-  (invoke! [_ _ op]
-    (try+
-     (case (:f op)
-       :read (assoc op :type :ok , :value (-> conn
-                                              (v/get "foo" {:quorum? true})
-                                              parse-long-nil))
-       :write (do (v/reset! conn "foo" (:value op))
-                  (assoc op :type :ok))
-       :cas (let [[old new] (:value op)]
-              (assoc op :type (if (v/cas! conn "foo" old new)
-                                :ok
-                                :fail))))
-     #_{:clj-kondo/ignore [:unresolved-symbol]} ;; NOTE: lsp bug
-     (catch [:errorCode 100] ex
-       (assoc op :type :fail, :error :not-found))
-     #_{:clj-kondo/ignore [:unresolved-symbol]} ;; NOTE: lsp bug
-     (catch java.net.SocketTimeoutException e
-       (assoc op
-              :type  (if (= :read (:f op))
-                       :fail
-                       :info)
-              :error :timeout))))
+  (invoke! [_ test op]
+    (let [[k v] (:value op)]
+      (try+
+       (case (:f op)
+         :read (let [value (-> conn
+                               (v/get k {:quorum? (:quorum test)})
+                               parse-long-nil)]
+                 (assoc op :type :ok , :value (independent/tuple k value)))
+         :write (do (v/reset! conn k v)
+                    (assoc op :type :ok))
+         :cas (let [[old new] v]
+                (assoc op :type (if (v/cas! conn k old new)
+                                  :ok
+                                  :fail))))
+       #_{:clj-kondo/ignore [:unresolved-symbol]} ;; NOTE: lsp bug
+       (catch [:errorCode 100] ex
+         (assoc op :type :fail, :error :not-found))
+       #_{:clj-kondo/ignore [:unresolved-symbol]} ;; NOTE: lsp bug
+       (catch java.net.SocketTimeoutException e
+         (assoc op
+                :type  (if (= :read (:f op))
+                         :fail
+                         :info)
+                :error :timeout)))))
 
   (teardown! [_ _])
 
@@ -128,32 +133,47 @@
   "Given an options map from the command line runner (e.g. :nodes, :ssh,
   :concurrency, ...), constructs a test map."
   [opts]
-  (merge tests/noop-test
-         {:name "etcd"
-          :os debian/os
-          :db (db "v3.1.5")
-          :pure-generators true
-          :client (Client. nil)
-          :checker (checker/compose
-                    {:perf   (checker/perf)
-                     :linear (checker/linearizable {:model     (model/cas-register)
-                                                    :algorithm :linear})
-                     :timeline (timeline/html)})
-          :nemesis (nemesis/partition-random-halves)
-          :generator (->> (gen/mix [r w cas])
-                          (gen/stagger 1/10)
-                          (gen/nemesis
-                           (cycle [(gen/sleep 5)
-                                   {:type :info, :f :start}
-                                   (gen/sleep 5)
-                                   {:type :info, :f :stop}]))
-                          (gen/time-limit (:time-limit opts)))}
-         opts))
+  (let [quorum (boolean (:quorum opts))]
+
+    (merge tests/noop-test
+           {:name (str "etcd q=" quorum)
+            :os debian/os
+            :db (db "v3.1.5")
+            :pure-generators true
+            :quorum quorum
+            :client (Client. nil)
+            :checker (checker/compose
+                      {:perf   (checker/perf)
+                       :indep (independent/checker
+                               (checker/compose
+                                {:linear (checker/linearizable {:model     (model/cas-register)
+                                                                :algorithm :linear})
+                                 :timeline (timeline/html)}))})
+            :nemesis (nemesis/partition-random-halves)
+            :generator (->> (independent/concurrent-generator
+                             10
+                             (range)
+                             (fn [_]
+                               (->> (gen/mix [r w cas])
+                                    (gen/stagger 1/25)
+                                    (gen/limit 100))))
+                            (gen/nemesis
+                             (cycle [(gen/sleep 5)
+                                     {:type :info, :f :start}
+                                     (gen/sleep 5)
+                                     {:type :info, :f :stop}]))
+                            (gen/time-limit (:time-limit opts)))}
+           opts)))
+
+(def cli-opts
+  "Additional command line options."
+    [["-q" "--quorum" "Use quorum reads, instead of reading from any primary."]])
 
 (defn -main
   "Handles command line arguments. Can either run a test, or a web server for
   browsing results."
   [& args]
-  (cli/run! (merge (cli/single-test-cmd {:test-fn etcd-test})
+  (cli/run! (merge (cli/single-test-cmd {:test-fn etcd-test
+                                         :opt-spec cli-opts})
                    (cli/serve-cmd))
             args))
