@@ -7,7 +7,8 @@
              [tests :as tests]
              [generator :as gen]
              [client :as client]
-             [checker :as checker]]
+             [checker :as checker]
+             [nemesis :as nemesis]]
             [jepsen.checker.timeline :as timeline]
             [jepsen.control.util :as cu]
             [jepsen.os.debian :as debian]
@@ -131,10 +132,15 @@
                      :linear (checker/linearizable {:model     (model/cas-register)
                                                     :algorithm :linear})
                      :timeline (timeline/html)})
+          :nemesis (nemesis/partition-random-halves)
           :generator (->> (gen/mix [r w cas])
-                          (gen/stagger 1)
-                          (gen/nemesis nil)
-                          (gen/time-limit 15))}
+                          (gen/stagger 1/50)
+                          (gen/nemesis
+                           (cycle [(gen/sleep 5)
+                                   {:type :info, :f :start}
+                                   (gen/sleep 5)
+                                   {:type :info, :f :stop}]))
+                          (gen/time-limit (:time-limit opts)))}
          opts))
 
 (defn -main
