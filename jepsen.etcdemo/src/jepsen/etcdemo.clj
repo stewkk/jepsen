@@ -6,11 +6,13 @@
              [db :as db]
              [tests :as tests]
              [generator :as gen]
-             [client :as client]]
+             [client :as client]
+             [checker :as checker]]
             [jepsen.control.util :as cu]
             [jepsen.os.debian :as debian]
             [verschlimmbesserung.core :as v]
-            [slingshot.slingshot :refer [try+]]))
+            [slingshot.slingshot :refer [try+]]
+            [knossos.model :as model]))
 
 (def dir     "/opt/etcd")
 (def binary "etcd")
@@ -123,6 +125,9 @@
           :db (db "v3.1.5")
           :pure-generators true
           :client (Client. nil)
+          :checker (checker/linearizable
+                    {:model     (model/cas-register)
+                     :algorithm :linear})
           :generator (->> (gen/mix [r w cas])
                           (gen/stagger 1)
                           (gen/nemesis nil)
