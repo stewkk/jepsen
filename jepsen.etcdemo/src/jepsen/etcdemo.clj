@@ -63,6 +63,7 @@
         :--initial-cluster-state        :new
         :--initial-advertise-peer-urls  (peer-url node)
         :--initial-cluster              (initial-cluster test))
+       ;; FIXME: wait for healthcheck
        (Thread/sleep 10000)))
 
     (teardown! [_ _ node]
@@ -78,6 +79,12 @@
 (defn w   [_ _] {:type :invoke, :f :write, :value (rand-int 5)})
 (defn cas [_ _] {:type :invoke, :f :cas, :value [(rand-int 5) (rand-int 5)]})
 
+(defn parse-long-nil
+  "Parses a string to a Long. Passes through `nil`."
+  [s]
+  (when s (parse-long s)))
+
+
 (defrecord Client [conn]
   client/Client
   (open! [this test node]
@@ -88,7 +95,8 @@
 
   (invoke! [_ test op]
     (case (:f op)
-      :read (assoc op :type :ok , :value (v/get conn "foo"))
+      :read (assoc op :type :ok , :value (->> (v/get conn "foo")
+                                              parse-long-nil))
       :write (do (v/reset! conn "foo" (:value op))
                  (assoc op :type :ok))))
 
