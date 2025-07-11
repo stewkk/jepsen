@@ -155,8 +155,8 @@
                              (range)
                              (fn [_]
                                (->> (gen/mix [r w cas])
-                                    (gen/stagger 1/25)
-                                    (gen/limit 100))))
+                                    (gen/stagger (/ (:rate opts)))
+                                    (gen/limit (:ops-per-key opts)))))
                             (gen/nemesis
                              (cycle [(gen/sleep 5)
                                      {:type :info, :f :start}
@@ -167,7 +167,15 @@
 
 (def cli-opts
   "Additional command line options."
-    [["-q" "--quorum" "Use quorum reads, instead of reading from any primary."]])
+    [["-q" "--quorum" "Use quorum reads, instead of reading from any primary."]
+     ["-r" "--rate HZ" "Approximate number of requests per second, per thread."
+      :default  10
+      :parse-fn read-string
+      :validate [#(and (number? %) (pos? %)) "Must be a positive number"]]
+     [nil "--ops-per-key NUM" "Maximum number of operations on any given key."
+      :default  100
+      :parse-fn parse-long
+      :validate [pos? "Must be a positive integer."]]])
 
 (defn -main
   "Handles command line arguments. Can either run a test, or a web server for
