@@ -60,12 +60,16 @@
         :--initial-cluster-state        :new
         :--initial-advertise-peer-urls  (peer-url node)
         :--initial-cluster              (initial-cluster test))
-       (Thread/sleep 1000)))
+       (Thread/sleep 10000)))
 
     (teardown! [_ _ node]
       (info node "tearing down etcd")
       (cu/stop-daemon! binary pidfile)
-      (c/su (c/exec :rm :-rf dir)))))
+      (c/su (c/exec :rm :-rf dir)))
+
+    db/LogFiles
+    (log-files [_ _ _]
+      [logfile])))
 
 (defn etcd-test
   "Given an options map from the command line runner (e.g. :nodes, :ssh,
