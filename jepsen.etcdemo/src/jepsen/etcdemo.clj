@@ -4,9 +4,12 @@
             [jepsen [cli :as cli]
              [control :as c]
              [db :as db]
-             [tests :as tests]]
+             [tests :as tests]
+             [generator :as gen]
+             [client :as client]]
             [jepsen.control.util :as cu]
-            [jepsen.os.debian :as debian]))
+            [jepsen.os.debian :as debian]
+            [verschlimmbesserung.core :as v]))
 
 (def dir     "/opt/etcd")
 (def binary "etcd")
@@ -71,6 +74,26 @@
     (log-files [_ _ _]
       [logfile])))
 
+(defn r   [_ _] {:type :invoke, :f :read, :value nil})
+(defn w   [_ _] {:type :invoke, :f :write, :value (rand-int 5)})
+(defn cas [_ _] {:type :invoke, :f :cas, :value [(rand-int 5) (rand-int 5)]})
+
+(defrecord Client [conn]
+  client/Client
+  (open! [this test node]
+    (assoc this :conn (v/connect (client-url node)
+                                 {:timeout 5000})))
+
+  (setup! [this test])
+
+  (invoke! [_ test op]
+    (case (:f op)
+      :read (assoc op :type :ok , :value (v/get conn "foo"))))
+
+  (teardown! [this test])
+
+  (close! [_ test]))
+
 (defn etcd-test
   "Given an options map from the command line runner (e.g. :nodes, :ssh,
   :concurrency, ...), constructs a test map."
@@ -79,7 +102,12 @@
          {:name "etcd"
           :os debian/os
           :db (db "v3.1.5")
-          :pure-generators true}
+          :pure-generators true
+          :client (Client. nil)
+          :generator (->> r
+                          (gen/stagger 1)
+                          (gen/nemesis nil)
+                          (gen/time-limit 15))}
          opts))
 
 (defn -main
