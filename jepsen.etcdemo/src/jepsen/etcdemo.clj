@@ -98,7 +98,11 @@
       :read (assoc op :type :ok , :value (->> (v/get conn "foo")
                                               parse-long-nil))
       :write (do (v/reset! conn "foo" (:value op))
-                 (assoc op :type :ok))))
+                 (assoc op :type :ok))
+      :cas (let [[old new] (:value op)]
+             (assoc op :type (if (v/cas! conn "foo" old new)
+                               :ok
+                               :falil)))))
 
   (teardown! [this test])
 
@@ -114,7 +118,7 @@
           :db (db "v3.1.5")
           :pure-generators true
           :client (Client. nil)
-          :generator (->> (gen/mix [r w])
+          :generator (->> (gen/mix [r w cas])
                           (gen/stagger 1)
                           (gen/nemesis nil)
                           (gen/time-limit 15))}
