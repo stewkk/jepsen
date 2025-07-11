@@ -1,5 +1,5 @@
 (ns jepsen.etcdemo
-  (:require [clojure.tools.logging :refer :all]
+  (:require [clojure.tools.logging :refer [info]]
             [clojure.string :as str]
             [jepsen [cli :as cli]
              [control :as c]
@@ -92,13 +92,13 @@
 
 (defrecord Client [conn]
   client/Client
-  (open! [this test node]
+  (open! [this _ node]
     (assoc this :conn (v/connect (client-url node)
                                  {:timeout 5000})))
 
-  (setup! [this test])
+  (setup! [_ _])
 
-  (invoke! [_ test op]
+  (invoke! [_ _ op]
     (case (:f op)
       :read (assoc op :type :ok , :value (-> conn
                                              (v/get "foo" {:quorum? true})
@@ -114,9 +114,9 @@
             (catch [:errorCode 100] ex
               (assoc op :type :fail, :error :not-found)))))
 
-  (teardown! [this test])
+  (teardown! [_ _])
 
-  (close! [_ test]))
+  (close! [_ _]))
 
 (defn etcd-test
   "Given an options map from the command line runner (e.g. :nodes, :ssh,

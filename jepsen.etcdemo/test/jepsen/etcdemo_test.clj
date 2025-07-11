@@ -1,6 +1,5 @@
 (ns jepsen.etcdemo-test
-  (:require [clojure.test :refer :all]
-            [jepsen.etcdemo :refer :all]))
+  (:require [clojure.test :refer [deftest is testing]]))
 
 (deftest a-test
   (testing "FIXME, I fail."
