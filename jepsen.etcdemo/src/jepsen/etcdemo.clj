@@ -8,6 +8,7 @@
              [generator :as gen]
              [client :as client]
              [checker :as checker]]
+            [jepsen.checker.timeline :as timeline]
             [jepsen.control.util :as cu]
             [jepsen.os.debian :as debian]
             [verschlimmbesserung.core :as v]
@@ -125,9 +126,11 @@
           :db (db "v3.1.5")
           :pure-generators true
           :client (Client. nil)
-          :checker (checker/linearizable
-                    {:model     (model/cas-register)
-                     :algorithm :linear})
+          :checker (checker/compose
+                    {:perf   (checker/perf)
+                     :linear (checker/linearizable {:model     (model/cas-register)
+                                                    :algorithm :linear})
+                     :timeline (timeline/html)})
           :generator (->> (gen/mix [r w cas])
                           (gen/stagger 1)
                           (gen/nemesis nil)
