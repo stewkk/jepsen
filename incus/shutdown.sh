@@ -1,6 +1,8 @@
 #!/usr/bin/env sh
 
-for i in {1..10}; do
+N=1
+
+for ((i = 1; i <= N; i++)); do
   incus stop n${i};
   incus delete n${i};
 done

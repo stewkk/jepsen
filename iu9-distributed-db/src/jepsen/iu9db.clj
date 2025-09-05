@@ -19,9 +19,10 @@
   (reify db/DB
     (setup! [_ _ node]
       (log/info node "installing iu9-db")
-      (c/su (c/exec :mkdir dir)
+      (c/su (c/exec :mkdir :-p dir)
             (c/exec :mkdir datadir))
       (c/upload "resources/iu9-db" (str dir "/" binary))
+      (c/exec :chmod :+x (str dir "/" binary))
       (cu/start-daemon!
        {:logfile logfile
         :pidfile pidfile

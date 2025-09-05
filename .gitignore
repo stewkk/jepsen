@@ -36,3 +36,4 @@ jepsen/doc
 docker/docker-compose.yml
 **/.clj-kondo/**
 **/.lsp/**
+iu9-distributed-db/resources/iu9-db
