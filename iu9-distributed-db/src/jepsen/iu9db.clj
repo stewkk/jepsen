@@ -27,6 +27,7 @@
   (merge tests/noop-test
          opts
          {:name "simple-test"
+          :nodes ["n1.incus"]
           :os ubuntu/os
           :db (db)
           :pure-generators true
