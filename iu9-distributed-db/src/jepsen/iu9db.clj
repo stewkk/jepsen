@@ -4,10 +4,14 @@
              [tests :as tests]
              [db :as db]]
             [jepsen.os.ubuntu :as ubuntu]
+            [jepsen.control.util :as cu]
             [jepsen.control :as c]))
 
 (def dir "/opt")
 (def binary "iu9-db")
+(def pidfile (str dir "/iu9db.pid"))
+(def logfile (str dir "/iu9db.log"))
+(def datadir (str dir "/data"))
 
 (defn db
   "iu9-db"
@@ -15,10 +19,26 @@
   (reify db/DB
     (setup! [_ _ node]
       (log/info node "installing iu9-db")
-      (c/upload "resources/iu9-db" (str dir "/" binary)))
+      (c/su (c/exec :mkdir dir)
+            (c/exec :mkdir datadir))
+      (c/upload "resources/iu9-db" (str dir "/" binary))
+      (cu/start-daemon!
+       {:logfile logfile
+        :pidfile pidfile
+        :chdir   dir}
+       binary
+       :--logfile logfile
+       :--datadir datadir)
+      (Thread/sleep 15000))
 
     (teardown! [_ _ node]
-      (log/info node "tearing down iu9-db"))))
+      (log/info node "tearing down iu9-db")
+      (cu/stop-daemon! binary pidfile)
+      (c/su (c/exec :rm :-rf dir)))
+
+    db/LogFiles
+    (log-files [_ _ _]
+      [logfile])))
 
 (defn etcd-test
   "Given an options map from the command line runner (e.g. :nodes, :ssh,
