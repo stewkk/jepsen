@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
 
-for i in {1..10}; do incus launch images:debian/12 n${i}; done
+for i in {1..10}; do incus launch images:ubuntu/plucky n${i}; done
 
 for i in {1..10}; do
   incus exec n${i} -- sh -c "apt-get -qy update && apt-get -qy install openssh-server sudo";

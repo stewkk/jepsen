@@ -1,7 +1,24 @@
 (ns jepsen.iu9db
-  (:require [jepsen [cli :as cli]
-             [tests :as tests]]
-            [jepsen.os.debian :as debian]))
+  (:require [clojure.tools.logging :as log]
+            [jepsen [cli :as cli]
+             [tests :as tests]
+             [db :as db]]
+            [jepsen.os.ubuntu :as ubuntu]
+            [jepsen.control :as c]))
+
+(def dir "/opt")
+(def binary "iu9-db")
+
+(defn db
+  "iu9-db"
+  []
+  (reify db/DB
+    (setup! [_ _ node]
+      (log/info node "installing iu9-db")
+      (c/upload "resources/iu9-db" (str dir "/" binary)))
+
+    (teardown! [_ _ node]
+      (log/info node "tearing down iu9-db"))))
 
 (defn etcd-test
   "Given an options map from the command line runner (e.g. :nodes, :ssh,
@@ -10,7 +27,8 @@
   (merge tests/noop-test
          opts
          {:name "simple-test"
-          :os debian/os
+          :os ubuntu/os
+          :db (db)
           :pure-generators true
           }))
 
