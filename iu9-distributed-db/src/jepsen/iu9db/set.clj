@@ -1,11 +1,11 @@
-(ns jepsen.etcdemo.set
+(ns jepsen.iu9db.set
   (:require [jepsen
              [checker :as checker]
              [client :as client]
              [generator :as gen]]
             [slingshot.slingshot :refer [try+]]
             [verschlimmbesserung.core :as v]
-            [jepsen.etcdemo.support :as s]))
+            [jepsen.iu9db.support :as s]))
 
 (defrecord SetClient [k conn]
   client/Client

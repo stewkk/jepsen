@@ -1,4 +1,4 @@
-(ns jepsen.etcdemo
+(ns jepsen.iu9db
   (:require [clojure.tools.logging :refer [info]]
             [clojure.string :as str]
             [jepsen [cli :as cli]
@@ -16,9 +16,9 @@
             [verschlimmbesserung.core :as v]
             [slingshot.slingshot :refer [try+]]
             [knossos.model :as model]
-            [jepsen.etcdemo [support :as s]
+            [jepsen.iu9db [support :as s]
              [set :as set]]
-            [jepsen.etcdemo.set :as set]))
+            [jepsen.iu9db.set :as set]))
 
 (def dir     "/opt/etcd")
 (def binary "etcd")

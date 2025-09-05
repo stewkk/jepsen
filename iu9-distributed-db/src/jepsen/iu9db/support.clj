@@ -1,4 +1,4 @@
-(ns jepsen.etcdemo.support
+(ns jepsen.iu9db.support
   (:require [clojure.string :as str]))
 
 (defn node-url
