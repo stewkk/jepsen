@@ -3,7 +3,7 @@
            [io.grpc StatusRuntimeException]))
 
 (def client (iu9db.DbGrpc/newBlockingStub
-               (-> (io.grpc.ManagedChannelBuilder/forAddress "localhost" (int 50051))
+               (-> (io.grpc.ManagedChannelBuilder/forAddress "n1.incus" (int 50051))
                    (.usePlaintext)
                    .build)))
 

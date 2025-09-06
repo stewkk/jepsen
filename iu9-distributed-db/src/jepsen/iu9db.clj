@@ -50,15 +50,15 @@
 (defrecord Client [conn]
   client/Client
   (open! [this test node]
-    ;; (assoc this :conn @(grpc.http2/connect {:uri "http://localhost:50051"}))
     this)
 
   (setup! [this test])
 
   (invoke! [_ test op]
-    ;; (case (:f op)
-    ;;   :read (assoc op :type :ok, :value (dbclient/Get conn {:key "key"})))
-    )
+    (case (:f op)
+      :read (assoc op :type :ok, :value (dbclient/do-get "key"))
+      :write (do (dbclient/do-insert "key" (:value op))
+                 (assoc op :type :ok))))
 
   (teardown! [this test])
 
@@ -75,7 +75,7 @@
           :os ubuntu/os
           :db (db)
           :client (Client. nil)
-          :generator (->> r
+          :generator (->> (gen/mix [r w])
                           (gen/stagger 1)
                           (gen/nemesis nil)
                           (gen/time-limit 15))
