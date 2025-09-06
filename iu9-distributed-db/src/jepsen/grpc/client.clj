@@ -1,6 +1,5 @@
 (ns jepsen.grpc.client
-  (:import [iu9db DbGrpc]
-           [io.grpc StatusRuntimeException]))
+  (:import [iu9db DbGrpc]))
 
 (def client (iu9db.DbGrpc/newBlockingStub
                (-> (io.grpc.ManagedChannelBuilder/forAddress "n1.incus" (int 50051))
@@ -8,18 +7,13 @@
                    .build)))
 
 (defn do-get [key]
-   (try
-     (.getValue
-      (.get client (-> (iu9db.Api$KeyRequest/newBuilder)
-                       (.setKey key)
-                       .build)))
-     (catch StatusRuntimeException e
-       (.getStatus e))))
+  (.getValue
+   (.get client (-> (iu9db.Api$KeyRequest/newBuilder)
+                    (.setKey key)
+                    .build))))
 
 (defn do-insert [key value]
-  (try (.insert client (-> (iu9db.Api$KeyValueRequest/newBuilder)
-                           (.setKey key)
-                           (.setValue value)
-                           .build))
-       (catch StatusRuntimeException e
-         (.getStatus e))))
+  (.insert client (-> (iu9db.Api$KeyValueRequest/newBuilder)
+                      (.setKey key)
+                      (.setValue value)
+                      .build)))

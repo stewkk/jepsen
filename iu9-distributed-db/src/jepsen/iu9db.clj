@@ -4,11 +4,15 @@
              [tests :as tests]
              [db :as db]
              [client :as client]
-             [generator :as gen]]
+             [generator :as gen]
+             [independent :as independent]
+             [checker :as checker]]
             [jepsen.os.ubuntu :as ubuntu]
             [jepsen.control.util :as cu]
             [jepsen.control :as c]
-            [jepsen.grpc.client :as dbclient]))
+            [jepsen.grpc.client :as dbclient]
+            [knossos.model :as model])
+  (:import [io.grpc StatusRuntimeException]))
 
 (def dir "/opt")
 (def binary "iu9-db")
@@ -55,10 +59,16 @@
   (setup! [this test])
 
   (invoke! [_ test op]
-    (case (:f op)
-      :read (assoc op :type :ok, :value (dbclient/do-get "key"))
-      :write (do (dbclient/do-insert "key" (:value op))
-                 (assoc op :type :ok))))
+    (let [[k v] (:value op)]
+      (try
+        (case (:f op)
+          :read (assoc op :type :ok, :value (independent/tuple k (dbclient/do-get (str k))))
+          :write (do (dbclient/do-insert (str k) v)
+                     (assoc op :type :ok)))
+        (catch StatusRuntimeException e
+         (assoc op
+                :type (if (= :read (:f op)) :fail :info)
+                :error :notfound)))))
 
   (teardown! [this test])
 
@@ -75,10 +85,19 @@
           :os ubuntu/os
           :db (db)
           :client (Client. nil)
-          :generator (->> (gen/mix [r w])
-                          (gen/stagger 1)
+          :generator (->> (independent/concurrent-generator
+                           10
+                           (range)
+                           (fn [k]
+                             (->> (gen/mix [r w])
+                                  (gen/stagger 1/50)
+                                  (gen/limit 100))))
                           (gen/nemesis nil)
                           (gen/time-limit 15))
+          :checker (independent/checker
+                    (checker/linearizable
+                     {:model (model/register)
+                      :algorithm :linear}))
           :pure-generators true
           }))
 
