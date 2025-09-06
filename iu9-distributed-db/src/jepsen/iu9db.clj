@@ -8,7 +8,7 @@
             [jepsen.os.ubuntu :as ubuntu]
             [jepsen.control.util :as cu]
             [jepsen.control :as c]
-            ))
+            [jepsen.grpc.client :as dbclient]))
 
 (def dir "/opt")
 (def binary "iu9-db")

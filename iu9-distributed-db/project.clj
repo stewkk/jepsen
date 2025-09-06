@@ -7,7 +7,7 @@
                  [io.grpc/grpc-core "1.75.0"]
                  [io.netty/netty-codec-http2 "4.2.5.Final"]
                  [com.google.protobuf/protobuf-java "4.32.0"]
-                 [jakarta.annotation/jakarta.annotation-api "3.0.0"]
+                 [javax.annotation/javax.annotation-api "1.3.2"]
                  [io.grpc/grpc-netty "1.75.0"
                   :exclusions [io.grpc/grpc-core
                                io.netty/netty-codec-http2]]
