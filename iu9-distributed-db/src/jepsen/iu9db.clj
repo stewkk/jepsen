@@ -2,10 +2,13 @@
   (:require [clojure.tools.logging :as log]
             [jepsen [cli :as cli]
              [tests :as tests]
-             [db :as db]]
+             [db :as db]
+             [client :as client]
+             [generator :as gen]]
             [jepsen.os.ubuntu :as ubuntu]
             [jepsen.control.util :as cu]
-            [jepsen.control :as c]))
+            [jepsen.control :as c]
+            ))
 
 (def dir "/opt")
 (def binary "iu9-db")
@@ -30,7 +33,7 @@
        binary
        :--logfile logfile
        :--datadir datadir)
-      (Thread/sleep 15000))
+      (Thread/sleep 1000))
 
     (teardown! [_ _ node]
       (log/info node "tearing down iu9-db")
@@ -41,7 +44,27 @@
     (log-files [_ _ _]
       [logfile])))
 
-(defn etcd-test
+(defn r   [_ _] {:type :invoke, :f :read, :value nil})
+(defn w   [_ _] {:type :invoke, :f :write, :value (str (rand-int 5))})
+
+(defrecord Client [conn]
+  client/Client
+  (open! [this test node]
+    ;; (assoc this :conn @(grpc.http2/connect {:uri "http://localhost:50051"}))
+    this)
+
+  (setup! [this test])
+
+  (invoke! [_ test op]
+    ;; (case (:f op)
+    ;;   :read (assoc op :type :ok, :value (dbclient/Get conn {:key "key"})))
+    )
+
+  (teardown! [this test])
+
+  (close! [_ test]))
+
+(defn simple-test
   "Given an options map from the command line runner (e.g. :nodes, :ssh,
   :concurrency, ...), constructs a test map."
   [opts]
@@ -51,6 +74,11 @@
           :nodes ["n1.incus"]
           :os ubuntu/os
           :db (db)
+          :client (Client. nil)
+          :generator (->> r
+                          (gen/stagger 1)
+                          (gen/nemesis nil)
+                          (gen/time-limit 15))
           :pure-generators true
           }))
 
@@ -62,7 +90,7 @@
   "Handles command line arguments. Can either run a test, or a web server for
   browsing results."
   [& args]
-  (cli/run! (merge (cli/single-test-cmd {:test-fn etcd-test
+  (cli/run! (merge (cli/single-test-cmd {:test-fn simple-test
                                          :opt-spec cli-opts})
                    (cli/serve-cmd))
             args))
