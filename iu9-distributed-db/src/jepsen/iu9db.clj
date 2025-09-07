@@ -11,8 +11,9 @@
             [jepsen.control.util :as cu]
             [jepsen.control :as c]
             [jepsen.grpc.client :as dbclient]
-            [knossos.model :as model])
-  (:import [io.grpc StatusRuntimeException]))
+            [knossos.model :as model]
+            [jepsen.checker.timeline :as timeline])
+  (:import [io.grpc StatusRuntimeException Status$Code]))
 
 (def dir "/opt")
 (def binary "iu9-db")
@@ -59,15 +60,17 @@
 
   (invoke! [_ test op]
     (let [[k v] (:value op)]
-      (try
-        (case (:f op)
-          :read (assoc op :type :ok, :value (independent/tuple k (dbclient/do-get (str k))))
-          :write (do (dbclient/do-insert (str k) v)
-                     (assoc op :type :ok)))
-        (catch StatusRuntimeException e
-         (assoc op
-                :type (if (= :read (:f op)) :fail :info)
-                :error :notfound)))))
+      (case (:f op)
+        :read (try
+                (assoc op :type :ok, :value (independent/tuple k (dbclient/do-get (str k))))
+                (catch StatusRuntimeException e
+                  (if (= (.getCode (.getStatus e)) Status$Code/NOT_FOUND)
+                    (assoc op :type :ok, :value (independent/tuple k "notfound"))
+                    (assoc op
+                           :type  :fail,
+                           :error :unknown))))
+        :write (do (dbclient/do-insert (str k) v)
+                   (assoc op :type :ok)))))
 
   (teardown! [this test])
 
@@ -93,10 +96,13 @@
                                   (gen/limit 100))))
                           (gen/nemesis nil)
                           (gen/time-limit 15))
-          :checker (independent/checker
-                    (checker/linearizable
-                     {:model (model/register)
-                      :algorithm :linear}))
+          :checker  (checker/compose
+                     {:perf  (checker/perf)
+                      :indep (independent/checker
+                              (checker/compose
+                               {:linear   (checker/linearizable {:model (model/register "notfound")
+                                                                 :algorithm :linear})
+                                :timeline (timeline/html)}))})
           :pure-generators true
           }))
 
