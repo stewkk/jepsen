@@ -37,6 +37,7 @@
         :chdir   dir}
        binary
        :--datadir datadir)
+       :--debug_level 5
       (Thread/sleep 1000))
 
     (teardown! [_ _ node]
