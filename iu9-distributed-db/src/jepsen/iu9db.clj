@@ -35,7 +35,6 @@
         :pidfile pidfile
         :chdir   dir}
        binary
-       :--logfile logfile
        :--datadir datadir)
       (Thread/sleep 1000))
 
