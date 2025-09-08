@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
 
-N=1
+N=6
 
 for ((i = 1; i <= N; i++)); do incus launch images:ubuntu/plucky n${i}; done
 
