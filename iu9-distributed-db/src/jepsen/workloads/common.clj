@@ -13,7 +13,7 @@
 
 (defn iu9db
   "iu9-db"
-  []
+  [zookeeper-hosts]
   (reify db/DB
     (setup! [_ _ node]
       (log/info node "installing iu9-db")
@@ -26,9 +26,10 @@
         :pidfile pidfile
         :chdir   dir}
        binary
-       :--datadir datadir)
+       :--datadir datadir
        :--debug_level 5
-      (Thread/sleep 1000))
+       :--zookeeper_hosts zookeeper-hosts)
+      (Thread/sleep 15000))
 
     (teardown! [_ _ node]
       (log/info node "tearing down iu9-db")

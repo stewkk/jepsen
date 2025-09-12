@@ -1,6 +1,5 @@
 (ns jepsen.iu9db
   (:require [jepsen.cli :as cli]
-            [jepsen.workloads.simple :as simple]
             [jepsen.workloads.distributed :as distributed]))
 
 

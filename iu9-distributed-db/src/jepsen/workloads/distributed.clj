@@ -9,6 +9,7 @@
              [control :as c]
              [independent :as independent]
              [checker :as checker]]
+            [jepsen.control.util :as cu]
             [knossos.model :as model]
             [jepsen.checker.timeline :as timeline]
             [jepsen.os.debian :as debian]
@@ -18,8 +19,8 @@
 
 (defn zk-node-ids
   "Returns a map of node names to node ids."
-  [test]
-  (->> test
+  [_]
+  (->> {:nodes ["n4.incus" "n5.incus" "n6.incus"]}
        :nodes
        (map-indexed (fn [i node] [node i]))
        (into {})))
@@ -31,8 +32,8 @@
 
 (defn zoo-cfg-servers
   "Constructs a zoo.cfg fragment for servers."
-  [test]
-  (->> (zk-node-ids test)
+  [_]
+  (->> (zk-node-ids {:nodes ["n4.incus" "n5.incus" "n6.incus"]})
        (map (fn [[node id]]
               (str "server." id "=" (name node) ":2888:3888")))
        (str/join "\n")))
@@ -41,50 +42,68 @@
   []
   (reify db/DB
     (setup! [_ test node]
-      (let [version "3.9.3-1build1"]
+      (let [version "3.8.4"]
         (c/su
 
          (log/info node "installing ZK" version)
-         (debian/install {:zookeeper version
-                          :zookeeper-bin version
-                          :zookeeperd version})
+
+         (debian/install {
+                          :openjdk-17-jdk-headless "17.0.16+8~us1-0ubuntu1~25.04.1"
+                          })
+
+         (c/exec :mkdir :-p "/opt/zookeeper")
+
+         (cu/install-archive! "https://dlcdn.apache.org/zookeeper/zookeeper-3.8.4/apache-zookeeper-3.8.4-bin.tar.gz"
+                              "/opt/zookeeper")
+
+         (c/exec :mkdir :-p "/var/lib/zookeeper /var/log/zookeeper")
 
          (c/exec :echo (zk-node-id test node) :> "/etc/zookeeper/conf/myid")
 
          (c/exec :echo (str (slurp (io/resource "zoo.cfg"))
                             "\n"
                             (zoo-cfg-servers test))
-                 :> "/etc/zookeeper/conf/zoo.cfg")
+                 :> "/opt/zookeeper/conf/zoo.cfg")
 
-         (log/info node "ZK restarting")
-         (c/exec :service :zookeeper :stop)
-         (c/exec :service :zookeeper :start) ; for some reason, the restart often fails.
+         (log/info node "ZK starting")
+         (cu/start-daemon!
+          {:logfile "/var/log/zookeeper/zookeeper.log"
+           :pidfile "/zookeeper.pid"
+           :chdir "/"}
+          "/opt/zookeeper/bin/zkServer.sh"
+          :start-foreground)
+         (Thread/sleep 10000)
          (log/info node "ZK ready"))))
 
     (teardown! [_ test node]
       (log/info node "tearing down ZK")
       (c/su
-       (c/exec :service :zookeeper :stop) ; we must first comment this line to let the node install zk.
        (c/exec :rm :-rf
                (c/lit "/var/lib/zookeeper/version-*")
                (c/lit "/var/log/zookeeper/*"))))
 
-      db/LogFiles
-      (log-files [_ test node]
-        ["/var/log/zookeeper/zookeeper.log"])))
+    db/LogFiles
+    (log-files [_ test node]
+      ["/var/log/zookeeper/zookeeper.log"])))
 
 (defn iu9db-cluster
   []
   (reify db/DB
     (setup! [_ test node]
       (if (some #(= node %) ["n1.incus" "n2.incus" "n3.incus"])
-        (db/setup! (common/iu9db) test node)
+        (db/setup! (common/iu9db "n4.incus:2181,n5.incus:2181,n6.incus:2181") test node)
         (db/setup! (zk) test node)))
 
     (teardown! [_ test node]
       (if (some #(= node %) ["n1.incus" "n2.incus" "n3.incus"])
-        (db/teardown! (common/iu9db) test node)
-        (db/teardown! (zk) test node)))))
+        (db/teardown! (common/iu9db "n4.incus:2181,n5.incus:2181,n6.incus:2181") test node)
+        (db/teardown! (zk) test node)))
+
+    db/LogFiles
+    (log-files [_ test node]
+      (if (some #(= node %) ["n1.incus" "n2.incus" "n3.incus"])
+        (db/log-files (common/iu9db "n4.incus:2181,n5.incus:2181,n6.incus:2181") test node)
+        (db/log-files (zk) test node)))))
 
 
 (defn distributed-test
