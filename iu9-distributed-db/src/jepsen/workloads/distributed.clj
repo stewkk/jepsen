@@ -8,7 +8,8 @@
              [generator :as gen]
              [control :as c]
              [independent :as independent]
-             [checker :as checker]]
+             [checker :as checker]
+             [nemesis :as nemesis]]
             [jepsen.control.util :as cu]
             [knossos.model :as model]
             [jepsen.checker.timeline :as timeline]
@@ -77,6 +78,8 @@
 
     (teardown! [_ test node]
       (log/info node "tearing down ZK")
+      (cu/stop-daemon! "/opt/zookeeper/bin/zkServer.sh" "/zookeeper.pid")
+      (c/exec :killall "java" :|| "true")
       (c/su
        (c/exec :rm :-rf
                (c/lit "/var/lib/zookeeper/version-*")
@@ -117,15 +120,13 @@
           :os ubuntu/os
           :db (iu9db-cluster)
           ;; :client (Client. nil)
-          ;; :generator (->> (independent/concurrent-generator
-          ;;                  10
-          ;;                  (range)
-          ;;                  (fn [k]
-          ;;                    (->> (gen/mix [r w])
-          ;;                         (gen/stagger 1/50)
-          ;;                         (gen/limit 100))))
-          ;;                 (gen/nemesis nil)
-          ;;                 (gen/time-limit 15))
+          :nemesis (nemesis/partition-random-halves)
+          :generator (->> (gen/nemesis
+                           (cycle [(gen/sleep 15)
+                                   {:type :info, :f :start}
+                                   (gen/sleep (+ 5 (rand-int 15)))
+                                   {:type :info, :f :stop}]))
+                          (gen/time-limit 200))
           ;; :checker  (checker/compose
           ;;            {:perf  (checker/perf)
           ;;             :indep (independent/checker
