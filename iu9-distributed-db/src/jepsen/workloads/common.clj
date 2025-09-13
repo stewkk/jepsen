@@ -28,7 +28,8 @@
        binary
        :--datadir datadir
        :--debug_level 5
-       :--zookeeper_hosts zookeeper-hosts)
+       :--zookeeper_hosts zookeeper-hosts
+       :--host node)
       (Thread/sleep 15000))
 
     (teardown! [_ _ node]
